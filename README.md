@@ -1,7 +1,7 @@
 # Pullse
 
 [![Build](../../actions/workflows/release.yml/badge.svg?branch=main)](../../actions/workflows/release.yml)
-[![Latest release](https://img.shields.io/badge/release-v0.10.0-blue)](../../releases/latest)
+[![Latest release](https://img.shields.io/badge/release-v0.10.1-blue)](../../releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/galbru/Pullse/total?label=downloads)](../../releases)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 
