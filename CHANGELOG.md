@@ -8,6 +8,10 @@ Added, Changed, Deprecated or Removed is a minor, and Breaking is a major.
 
 ## [Unreleased]
 
+### Fixed
+- The menu opens normally again with a long activity list. It could grow taller than the
+  screen and show as an empty, see-through window.
+
 ## [0.10.1] - 2026-10-05
 
 ### Fixed

@@ -65,11 +65,11 @@ struct MenuView: View {
                         }
                         .padding(.vertical, 4)
                         .background(GeometryReader { proxy in
-                            Color.clear.preference(key: MaxHeightKey.self, value: proxy.size.height)
+                            Color.clear.preference(key: ListHeightKey.self, value: proxy.size.height)
                         })
                     }
                     .frame(height: min(max(listHeight.wrappedValue, 1), maxListHeight))
-                    .onPreferenceChange(MaxHeightKey.self) { listHeight.wrappedValue = $0 }
+                    .onPreferenceChange(ListHeightKey.self) { listHeight.wrappedValue = $0 }
                     .onChange(of: selection.wrappedValue) { _, row in
                         guard scrollToSelection.wrappedValue, let row else { return }
                         scrollToSelection.wrappedValue = false
@@ -83,9 +83,9 @@ struct MenuView: View {
         .frame(width: 380)
         .fixedSize(horizontal: false, vertical: true)
         .background(GeometryReader { proxy in
-            Color.clear.preference(key: MaxHeightKey.self, value: proxy.size.height)
+            Color.clear.preference(key: MenuHeightKey.self, value: proxy.size.height)
         })
-        .onPreferenceChange(MaxHeightKey.self) { contentHeight.wrappedValue = $0 }
+        .onPreferenceChange(MenuHeightKey.self) { contentHeight.wrappedValue = $0 }
         .background(FitWindowToContent(height: contentHeight.wrappedValue))
         .background(MenuKeys(onOpen: { selection.wrappedValue = nil }) { key in
             handle(key, rows: ActivityGroups.rowIDs(activityGroups()))
@@ -260,7 +260,12 @@ private struct FitWindowToContent: NSViewRepresentable {
         }
 
         private func fit() {
-            guard height > 0, let window, abs(window.frame.height - height) > 0.5 else { return }
+            guard let window else { return }
+            // Never taller than the screen, whatever was measured: the window hangs from the
+            // menu bar, so anything taller would run off the bottom.
+            let available = window.screen?.visibleFrame.height ?? .greatestFiniteMagnitude
+            let height = min(height, available)
+            guard height > 0, abs(window.frame.height - height) > 0.5 else { return }
             var frame = window.frame
             frame.origin.y = frame.maxY - height
             frame.size.height = height
@@ -319,8 +324,19 @@ private struct MenuKeys: NSViewRepresentable {
     }
 }
 
-/// The largest height reported in a subtree, used to measure content.
-private struct MaxHeightKey: PreferenceKey {
+/// The list's own height, measured inside its ScrollView. A preference keeps flowing up
+/// past the views that read it, so this needs a key of its own: if it shared one with
+/// `MenuHeightKey`, the menu would size its window to the whole list rather than to the
+/// capped ScrollView, and a long list made the window taller than the screen.
+private struct ListHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
+/// The whole menu's height, for `FitWindowToContent`.
+private struct MenuHeightKey: PreferenceKey {
     static let defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = max(value, nextValue())
