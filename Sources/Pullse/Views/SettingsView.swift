@@ -42,6 +42,8 @@ struct SettingsView: View {
     /// when the window closes: applying every keystroke would poll half-typed org names.
     private let orgText = State(initialValue: "")
     private let mutedText = State(initialValue: "")
+    /// Set for a moment after "Send test notification", which then shows it went through.
+    private let testSent = State(initialValue: false)
 
     init(model: AppModel, tab: SettingsTab = .github) {
         self.model = model
@@ -185,10 +187,27 @@ struct SettingsView: View {
         }
 
         Section {
-            Button("Send test notification") { Task { await model.sendTest() } }
+            Button { Task { await sendTest() } } label: {
+                // Both labels are always laid out, so the button keeps one width when it swaps.
+                ZStack {
+                    Text("Send test notification").opacity(testSent.wrappedValue ? 0 : 1)
+                    Label(model.notificationProblem == nil ? "Sent" : "Added to the menu only",
+                          systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(model.notificationProblem == nil ? .green : .orange)
+                        .opacity(testSent.wrappedValue ? 1 : 0)
+                }
+            }
+            .disabled(testSent.wrappedValue)
         } footer: {
             Footnote("Posts a sample notification and adds a test item to the activity list.")
         }
+    }
+
+    private func sendTest() async {
+        await model.sendTest()
+        testSent.wrappedValue = true
+        try? await Task.sleep(for: .seconds(2))
+        testSent.wrappedValue = false
     }
 
     // MARK: - Updates
