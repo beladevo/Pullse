@@ -45,13 +45,17 @@ func pr(
     repo: String = "acme/api", number: Int = 1, body: String = "",
     author: [String: Any] = actor("me"),
     comments: [[String: Any]] = [], reviews: [[String: Any]] = [],
-    threads: [[[String: Any]]] = [], checks: [[String: Any]] = []
+    threads: [[[String: Any]]] = [], checks: [[String: Any]] = [],
+    isDraft: Bool = false, mergeable: String? = nil, reviewDecision: String? = nil
 ) -> [String: Any] {
     [
         "id": "PR_\(repo)_\(number)", "number": number, "title": "A change",
         "url": "https://github.com/\(repo)/pull/\(number)", "body": body,
         "createdAt": stamp(t0.addingTimeInterval(-86_400)), "author": author,
         "repository": ["nameWithOwner": repo],
+        "isDraft": isDraft,
+        "mergeable": mergeable ?? NSNull(),
+        "reviewDecision": reviewDecision ?? NSNull(),
         "comments": ["nodes": comments],
         // Inline comments arrive nested in the (empty "commented") review that holds them.
         "reviews": ["nodes": reviews + threads.enumerated().map { index, comments in
@@ -74,4 +78,15 @@ func detect(
     _ snapshot: Snapshot, state: SeenState = polled, settings: DetectorSettings = DetectorSettings()
 ) -> [PREvent] {
     EventDetector.detect(snapshot, state: state, settings: settings, now: now).events
+}
+
+/// A pull request that satisfies every part of the ready-to-merge rule, so each test
+/// can take one thing away.
+func readyPR(
+    number: Int = 1, repo: String = "acme/api", checks: [[String: Any]] = [],
+    isDraft: Bool = false, mergeable: String? = "MERGEABLE",
+    reviewDecision: String? = "APPROVED"
+) -> [String: Any] {
+    pr(repo: repo, number: number, checks: checks, isDraft: isDraft,
+       mergeable: mergeable, reviewDecision: reviewDecision)
 }

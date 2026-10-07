@@ -32,6 +32,9 @@ enum Queries {
         nodes {
           ... on PullRequest {
             ...ConversationFields
+            isDraft
+            mergeable
+            reviewDecision
             commits(last: 1) {
               nodes {
                 commit {
