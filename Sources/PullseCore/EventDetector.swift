@@ -42,12 +42,14 @@ public struct SeenState: Codable, Sendable, Equatable {
     /// (used only for pruning).
     public var seen: [String: Date] = [:]
     /// Which conditions were true at the end of the last poll, keyed
-    /// `condition:prID`. A condition notifies when it enters this set.
-    public var activeConditions: Set<String> = []
+    /// `condition:prID`. A condition notifies when it enters this set. Nil in a state
+    /// file saved before conditions existed: the next poll then records them without
+    /// notifying, so updating doesn't announce every pull request that is already ready.
+    public var activeConditions: Set<String>?
 
     public init(
         lastPollAt: Date? = nil, seen: [String: Date] = [:],
-        activeConditions: Set<String> = []
+        activeConditions: Set<String>? = []
     ) {
         self.lastPollAt = lastPollAt
         self.seen = seen
@@ -61,7 +63,7 @@ public struct SeenState: Codable, Sendable, Equatable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         lastPollAt = try c.decodeIfPresent(Date.self, forKey: .lastPollAt)
         seen = try c.decodeIfPresent([String: Date].self, forKey: .seen) ?? [:]
-        activeConditions = try c.decodeIfPresent(Set<String>.self, forKey: .activeConditions) ?? []
+        activeConditions = try c.decodeIfPresent(Set<String>.self, forKey: .activeConditions)
     }
 }
 
@@ -200,8 +202,8 @@ public enum EventDetector {
         // Computed from the pull requests alone, never from the settings: a muted repo
         // or a switched-off condition is still tracked, so turning it back on can't
         // replay a state the user already lived through.
-        let fired = active.subtracting(state.activeConditions)
-        if !firstRun {
+        let fired = active.subtracting(state.activeConditions ?? [])
+        if !firstRun, state.activeConditions != nil {
             for pr in snapshot.myPullRequests {
                 let muted = settings.isMuted(pr.repository)
                 for rule in PRConditions.rules
@@ -217,7 +219,7 @@ public enum EventDetector {
                         id: "\(PRConditions.key(rule.condition, pr: pr)):\(Int(now.timeIntervalSince1970))",
                         kind: .condition, repo: pr.repository.nameWithOwner, number: pr.number,
                         prTitle: pr.title, prURL: pr.url, author: nil, headline: rule.headline,
-                        snippet: pr.title, url: pr.url, date: now, condition: rule.condition,
+                        snippet: rule.detail(pr), url: pr.url, date: now, condition: rule.condition,
                         isNegative: rule.tint == .negative
                     ))
                 }

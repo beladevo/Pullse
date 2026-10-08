@@ -24,11 +24,15 @@ private func readyEvents(_ nodes: [[String: Any]]) throws -> [PREvent] {
         #expect(events[0].condition == .readyToMerge)
         #expect(events[0].headline == "Ready to merge")
         #expect(events[0].isNegative == false)
+        // The PR title is already the notification's subtitle and the menu group's title.
+        #expect(events[0].snippet == "Approved, with no conflicts and every check green")
         #expect(events[0].url == "https://github.com/acme/api/pull/1")
     }
 
     @Test func firesWithNoChecksAtAll() throws {
-        #expect(try readyEvents([readyPR()]).count == 1)
+        let events = try readyEvents([readyPR()])
+        #expect(events.count == 1)
+        #expect(events.first?.snippet == "Approved, with no conflicts")
     }
 
     @Test func skippedAndNeutralCountAsGreen() throws {
@@ -85,7 +89,7 @@ private func readyEvents(_ nodes: [[String: Any]]) throws -> [PREvent] {
         let ready = try poll([readyPR()])
         let broken = try poll([readyPR(mergeable: "CONFLICTING")], state: ready.state,
                               at: now.addingTimeInterval(60))
-        #expect(broken.state.activeConditions.isEmpty)
+        #expect(broken.state.activeConditions == [])
 
         let again = try poll([readyPR()], state: broken.state, at: now.addingTimeInterval(120))
         let events = again.events.filter { $0.kind == .condition }
@@ -97,18 +101,31 @@ private func readyEvents(_ nodes: [[String: Any]]) throws -> [PREvent] {
 
     @Test func aMergedPullRequestLeavesTheState() throws {
         let ready = try poll([readyPR()])
-        #expect(ready.state.activeConditions.count == 1)
+        #expect(ready.state.activeConditions?.count == 1)
 
         let gone = try poll([], state: ready.state)
-        #expect(gone.state.activeConditions.isEmpty)
+        #expect(gone.state.activeConditions == [])
     }
 
     @Test func theFirstRunBaselinesSilently() throws {
         let first = try poll([readyPR()], state: SeenState())
         #expect(first.events.isEmpty)
-        #expect(first.state.activeConditions.count == 1)
+        #expect(first.state.activeConditions?.count == 1)
 
         #expect(try poll([readyPR()], state: first.state).events.isEmpty)
+    }
+
+    /// A state file from before conditions existed has polled before, so it isn't a
+    /// first run, but it has no record of which pull requests were already ready.
+    @Test func updatingBaselinesSilently() throws {
+        let updated = SeenState(lastPollAt: lastPoll, activeConditions: nil)
+        let first = try poll([readyPR(number: 1)], state: updated)
+        #expect(first.events.isEmpty)
+        #expect(first.state.activeConditions?.count == 1)
+
+        // From then on it notifies as usual.
+        let second = try poll([readyPR(number: 1), readyPR(number: 2)], state: first.state)
+        #expect(second.events.map(\.number) == [2])
     }
 
     @Test func eachPullRequestIsTrackedOnItsOwn() throws {
@@ -130,7 +147,7 @@ private func readyEvents(_ nodes: [[String: Any]]) throws -> [PREvent] {
     @Test func aDisabledConditionIsTrackedButNotAnnounced() throws {
         let first = try poll([readyPR()], settings: off())
         #expect(first.events.isEmpty)
-        #expect(first.state.activeConditions.count == 1)
+        #expect(first.state.activeConditions?.count == 1)
 
         // Switching it on must not replay a state the user already lived through.
         #expect(try poll([readyPR()], state: first.state).events.isEmpty)
@@ -141,7 +158,7 @@ private func readyEvents(_ nodes: [[String: Any]]) throws -> [PREvent] {
         settings.mutedRepos = ["acme/api"]
         let first = try poll([readyPR()], settings: settings)
         #expect(first.events.isEmpty)
-        #expect(first.state.activeConditions.count == 1)
+        #expect(first.state.activeConditions?.count == 1)
 
         #expect(try poll([readyPR()], state: first.state).events.isEmpty)
     }
@@ -169,7 +186,7 @@ private func readyEvents(_ nodes: [[String: Any]]) throws -> [PREvent] {
         )
         #expect(state.seen.seen["c1"] != nil)
         #expect(state.seen.lastPollAt != nil)
-        #expect(state.seen.activeConditions.isEmpty)
+        #expect(state.seen.activeConditions == nil)
         #expect(state.lastRunVersion == "0.8.1")
     }
 }

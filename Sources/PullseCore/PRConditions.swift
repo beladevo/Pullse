@@ -19,18 +19,23 @@ public struct PRConditionRule: Sendable {
     /// The Settings toggle's label.
     public let title: String
     public let headline: String
+    /// The line under the headline, saying why. Not the PR title: the notification and
+    /// the menu already show that.
+    public let detail: @Sendable (PullRequest) -> String
     public let symbol: String
     public let tint: ConditionTint
     public let defaultsOn: Bool
     public let matches: @Sendable (PullRequest) -> Bool
 
     public init(
-        condition: PRCondition, title: String, headline: String, symbol: String,
+        condition: PRCondition, title: String, headline: String,
+        detail: @escaping @Sendable (PullRequest) -> String, symbol: String,
         tint: ConditionTint, defaultsOn: Bool, matches: @escaping @Sendable (PullRequest) -> Bool
     ) {
         self.condition = condition
         self.title = title
         self.headline = headline
+        self.detail = detail
         self.symbol = symbol
         self.tint = tint
         self.defaultsOn = defaultsOn
@@ -44,6 +49,7 @@ public enum PRConditions {
             condition: .readyToMerge,
             title: "My pull requests becoming ready to merge",
             headline: "Ready to merge",
+            detail: { $0.checks.isEmpty ? "Approved, with no conflicts" : "Approved, with no conflicts and every check green" },
             symbol: "arrow.triangle.merge",
             tint: .positive,
             defaultsOn: true,
