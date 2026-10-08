@@ -231,6 +231,15 @@ public struct PREvent: Codable, Sendable, Identifiable, Hashable {
         self.isUnread = isUnread
     }
 
+    /// Set when a newer event of the same kind replaces this one rather than adding to
+    /// it: a condition that fires again on the same pull request. History keeps one
+    /// event per key, and the notification uses it as its id so macOS replaces the
+    /// earlier one too.
+    public var replacementKey: String? {
+        guard kind == .condition, let condition else { return nil }
+        return "\(condition.rawValue):\(prURL)"
+    }
+
     /// "api#1964"
     public var prLabel: String {
         kind == .test ? "Pullse" : Self.label(repo: repo, number: number)

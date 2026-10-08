@@ -44,7 +44,7 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate, @unchecked Sen
         }
         for event in events.reversed() {  // oldest first, so the newest ends up on top
             send(
-                id: event.id,
+                id: event.replacementKey ?? event.id,
                 title: "\(event.prLabel) · \(event.headline)",
                 subtitle: event.prTitle,
                 body: event.snippet,

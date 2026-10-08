@@ -14,7 +14,11 @@ public struct PersistedState: Codable, Sendable {
 
     public mutating func record(_ events: [PREvent]) {
         let known = Set(history.map(\.id))
-        history = (events.filter { !known.contains($0.id) } + history)
+        let added = events.filter { !known.contains($0.id) }
+        // A condition firing again takes the place of its earlier event, so the menu shows
+        // it once, at its newest.
+        let replaced = Set(added.compactMap(\.replacementKey))
+        history = (added + history.filter { $0.replacementKey.map(replaced.contains) != true })
             .sorted { $0.date > $1.date }
         if history.count > Self.historyLimit {
             history.removeLast(history.count - Self.historyLimit)

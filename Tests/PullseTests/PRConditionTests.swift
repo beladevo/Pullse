@@ -190,3 +190,26 @@ private func readyEvents(_ nodes: [[String: Any]]) throws -> [PREvent] {
         #expect(state.lastRunVersion == "0.8.1")
     }
 }
+
+@Suite struct ConditionHistoryTests {
+    @Test func aRepeatFiringReplacesTheEarlierOneInHistory() throws {
+        let ready = try poll([readyPR(), readyPR(number: 2)])
+        var history = PersistedState()
+        history.record(ready.events)
+        #expect(history.history.count == 2)
+
+        let broken = try poll([readyPR(mergeable: "UNKNOWN"), readyPR(number: 2)], state: ready.state,
+                              at: now.addingTimeInterval(60))
+        let again = try poll([readyPR(), readyPR(number: 2)], state: broken.state,
+                             at: now.addingTimeInterval(120))
+        for index in history.history.indices { history.history[index].isUnread = false }
+        history.record(again.events)
+
+        // One event per pull request: #1's newer firing replaced its first, at the top
+        // and unread; #2 never left the state, so its event is untouched.
+        #expect(history.history.map(\.number) == [1, 2])
+        #expect(history.history[0].id == again.events[0].id)
+        #expect(history.history[0].isUnread)
+        #expect(!history.history[1].isUnread)
+    }
+}

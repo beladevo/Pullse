@@ -12,7 +12,8 @@ Added, Changed, Deprecated or Removed is a minor, and Breaking is a major.
 - A notification when one of your open pull requests becomes ready to merge: approved,
   no conflicts, not a draft, and every check green. It fires on the change, stays quiet
   while the pull request is still ready, and fires again if the pull request leaves that
-  state and comes back. Turn it off under Notifications.
+  state and comes back, replacing the earlier one in the menu. Turn it off under
+  Notifications.
 
 ## [0.10.2] - 2026-10-05
 
