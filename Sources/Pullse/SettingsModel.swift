@@ -53,6 +53,13 @@ final class SettingsModel {
         )
     }
 
+    func binding(_ condition: PRCondition) -> Binding<Bool> {
+        Binding(
+            get: { self.current.isEnabled(condition) },
+            set: { value in self.update { $0.setEnabled(condition, value) } }
+        )
+    }
+
     private func load() {
         do {
             current = try file.load()

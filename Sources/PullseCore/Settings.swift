@@ -19,6 +19,10 @@ public struct PullseSettings: Codable, Equatable, Sendable {
     public var showOpenPullRequests = false
     /// Opens and closes the menu from any app. None until the user records one.
     public var openMenuShortcut: HotKey?
+    /// Pull request states to notify about, keyed by `PRCondition` raw value. A key
+    /// that isn't here takes its rule's default, so adding a condition needs no
+    /// migration and an unknown key in a hand-edited file is ignored.
+    public var conditions: [String: Bool] = [:]
     /// Look for new releases (on launch and every hour) and show when one exists.
     public var checkForUpdates = true
     /// Install a new release once it's found and Pullse isn't in use, then relaunch.
@@ -51,6 +55,7 @@ public struct PullseSettings: Codable, Equatable, Sendable {
         showOpenPullRequests = try c.decodeIfPresent(Bool.self, forKey: .showOpenPullRequests) ?? d.showOpenPullRequests
         // A hand-edited shortcut that doesn't decode is treated as none, not as a broken file.
         openMenuShortcut = (try? c.decodeIfPresent(HotKey.self, forKey: .openMenuShortcut)) ?? nil
+        conditions = try c.decodeIfPresent([String: Bool].self, forKey: .conditions) ?? d.conditions
         checkForUpdates = try c.decodeIfPresent(Bool.self, forKey: .checkForUpdates) ?? d.checkForUpdates
         autoUpdate = try c.decodeIfPresent(Bool.self, forKey: .autoUpdate) ?? d.autoUpdate
         includePrereleases = try c.decodeIfPresent(Bool.self, forKey: .includePrereleases) ?? d.includePrereleases
@@ -62,6 +67,14 @@ public struct PullseSettings: Codable, Equatable, Sendable {
     public var organization: String? {
         let trimmed = org.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+
+    public func isEnabled(_ condition: PRCondition) -> Bool {
+        conditions[condition.rawValue] ?? (PRConditions.rule(for: condition)?.defaultsOn ?? true)
+    }
+
+    public mutating func setEnabled(_ condition: PRCondition, _ on: Bool) {
+        conditions[condition.rawValue] = on
     }
 
     public var pollInterval: TimeInterval {
@@ -77,6 +90,7 @@ public struct PullseSettings: Codable, Equatable, Sendable {
         s.ciMode = ciResults
         s.includeBots = includeBots
         s.mutedRepos = DetectorSettings.parseRepoList(mutedRepos.joined(separator: ","))
+        s.enabledConditions = Set(PRCondition.allCases.filter(isEnabled))
         return s
     }
 }

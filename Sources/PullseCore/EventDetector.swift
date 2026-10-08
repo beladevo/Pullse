@@ -13,6 +13,7 @@ public struct DetectorSettings: Sendable {
     public var includeBots = false
     /// Repo names, either `owner/name` or bare `name`, compared case-insensitively.
     public var mutedRepos: Set<String> = []
+    public var enabledConditions: Set<PRCondition> = Set(PRCondition.allCases)
 
     public init() {}
 
@@ -40,10 +41,27 @@ public struct SeenState: Codable, Sendable, Equatable {
     /// Every item already considered, keyed by id, valued by the item's own timestamp
     /// (used only for pruning).
     public var seen: [String: Date] = [:]
+    /// Which conditions were true at the end of the last poll, keyed
+    /// `condition:prID`. A condition notifies when it enters this set.
+    public var activeConditions: Set<String> = []
 
-    public init(lastPollAt: Date? = nil, seen: [String: Date] = [:]) {
+    public init(
+        lastPollAt: Date? = nil, seen: [String: Date] = [:],
+        activeConditions: Set<String> = []
+    ) {
         self.lastPollAt = lastPollAt
         self.seen = seen
+        self.activeConditions = activeConditions
+    }
+
+    /// Hand-written so that a state file saved before a key existed still decodes:
+    /// synthesized decoding would throw on the missing key, and `StateStore.load`
+    /// turns a throw into a fresh state, silently dropping the user's history.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        lastPollAt = try c.decodeIfPresent(Date.self, forKey: .lastPollAt)
+        seen = try c.decodeIfPresent([String: Date].self, forKey: .seen) ?? [:]
+        activeConditions = try c.decodeIfPresent(Set<String>.self, forKey: .activeConditions) ?? []
     }
 }
 
@@ -178,12 +196,40 @@ public enum EventDetector {
             }
         }
 
+        let active = PRConditions.active(for: snapshot.myPullRequests)
+        // Computed from the pull requests alone, never from the settings: a muted repo
+        // or a switched-off condition is still tracked, so turning it back on can't
+        // replay a state the user already lived through.
+        let fired = active.subtracting(state.activeConditions)
+        if !firstRun {
+            for pr in snapshot.myPullRequests {
+                let muted = settings.isMuted(pr.repository)
+                for rule in PRConditions.rules
+                where fired.contains(PRConditions.key(rule.condition, pr: pr)) {
+                    guard settings.enabledConditions.contains(rule.condition), !muted else { continue }
+                    events.append(PREvent(
+                        // GitHub publishes nothing when a pull request changes state, so
+                        // there's no id or timestamp to borrow. The poll time keeps a
+                        // re-arm's id apart from the first firing's, which
+                        // `PersistedState.record` needs to keep both; a re-arm takes at
+                        // least one poll out of the state and one back in, so the two are
+                        // always more than a second apart.
+                        id: "\(PRConditions.key(rule.condition, pr: pr)):\(Int(now.timeIntervalSince1970))",
+                        kind: .condition, repo: pr.repository.nameWithOwner, number: pr.number,
+                        prTitle: pr.title, prURL: pr.url, author: nil, headline: rule.headline,
+                        snippet: pr.title, url: pr.url, date: now, condition: rule.condition,
+                        isNegative: rule.tint == .negative
+                    ))
+                }
+            }
+        }
+
         let keepAfter = now.addingTimeInterval(-retention)
         seen = seen.filter { $0.value >= keepAfter }
 
         return (
             events.sorted { $0.date > $1.date },
-            SeenState(lastPollAt: now, seen: seen)
+            SeenState(lastPollAt: now, seen: seen, activeConditions: active)
         )
     }
 

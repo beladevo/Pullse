@@ -130,12 +130,15 @@ public struct PullRequest: Decodable, Sendable {
     public let repository: Repository
     public let comments: Connection<Comment>
     public let reviews: Connection<Review>
-    /// Only requested for my own PRs (CI results); absent in the mentions query.
+    /// Only requested for my own PRs (CI results, merge state); absent in the
+    /// mentions query, which is why these are all optional.
     public let commits: Connection<CommitNode>?
     /// Only requested for my own PRs, for the open-PR list in the menu.
     public var isDraft: Bool? = nil
     /// APPROVED, CHANGES_REQUESTED or REVIEW_REQUIRED; null when no review is required.
     public var reviewDecision: String? = nil
+    /// MERGEABLE, CONFLICTING, or UNKNOWN while GitHub is still working it out.
+    public var mergeable: String? = nil
 
     public var checks: [CheckContext] {
         commits?.items.last?.commit.statusCheckRollup?.contexts.items ?? []
@@ -182,6 +185,8 @@ struct MentionsData: Decodable, Sendable {
 public struct PREvent: Codable, Sendable, Identifiable, Hashable {
     public enum Kind: String, Codable, Sendable {
         case comment, review, ci, mention
+        /// A state the pull request entered rather than an item someone created.
+        case condition
         /// Made by "Send test notification"; not from GitHub activity.
         case test
     }
@@ -198,6 +203,9 @@ public struct PREvent: Codable, Sendable, Identifiable, Hashable {
     public let snippet: String
     public let url: String
     public let date: Date
+    /// Which condition fired, for `.condition` events: the menu reads its rule for an
+    /// icon and a tint.
+    public let condition: PRCondition?
     /// Failed / changes requested — rendered in red.
     public let isNegative: Bool
     public var isUnread: Bool
@@ -205,7 +213,7 @@ public struct PREvent: Codable, Sendable, Identifiable, Hashable {
     public init(
         id: String, kind: Kind, repo: String, number: Int, prTitle: String, prURL: String,
         author: String?, headline: String, snippet: String, url: String, date: Date,
-        isNegative: Bool = false, isUnread: Bool = true
+        condition: PRCondition? = nil, isNegative: Bool = false, isUnread: Bool = true
     ) {
         self.id = id
         self.kind = kind
@@ -218,6 +226,7 @@ public struct PREvent: Codable, Sendable, Identifiable, Hashable {
         self.snippet = snippet
         self.url = url
         self.date = date
+        self.condition = condition
         self.isNegative = isNegative
         self.isUnread = isUnread
     }

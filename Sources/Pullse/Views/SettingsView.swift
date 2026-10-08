@@ -173,6 +173,11 @@ struct SettingsView: View {
             }
             .disabled(!settings.current.notifyCI)
             Toggle("@mentions in other people's pull requests", isOn: settings.binding(\.notifyMentions))
+            ForEach(PRCondition.allCases, id: \.self) { condition in
+                if let rule = PRConditions.rule(for: condition) {
+                    Toggle(rule.title, isOn: settings.binding(condition))
+                }
+            }
         }
 
         Section {

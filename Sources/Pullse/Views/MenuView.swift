@@ -543,6 +543,7 @@ private struct EventRow: View {
                 event.headline.hasSuffix("approved") ? "checkmark.seal" : "eye"
         case .ci: return event.isNegative ? "xmark.octagon" : "checkmark.circle"
         case .mention: return "at"
+        case .condition: return conditionRule?.symbol ?? "arrow.triangle.merge"
         case .test: return "bell.badge"
         }
     }
@@ -551,6 +552,11 @@ private struct EventRow: View {
         if event.isNegative { return .red }
         if event.kind == .review, event.headline.hasSuffix("approved") { return .green }
         if event.kind == .ci { return .green }
+        if event.kind == .condition, conditionRule?.tint == .positive { return .green }
         return .accentColor
+    }
+
+    private var conditionRule: PRConditionRule? {
+        event.condition.flatMap(PRConditions.rule(for:))
     }
 }

@@ -47,7 +47,7 @@ func pr(
     comments: [[String: Any]] = [], reviews: [[String: Any]] = [],
     threads: [[[String: Any]]] = [], checks: [[String: Any]] = [],
     isDraft: Bool = false, reviewDecision: String? = nil, rollupState: String? = nil,
-    createdAt: Date = t0.addingTimeInterval(-86_400)
+    mergeable: String? = nil, createdAt: Date = t0.addingTimeInterval(-86_400)
 ) -> [String: Any] {
     [
         "id": "PR_\(repo)_\(number)", "number": number, "title": "A change",
@@ -55,6 +55,7 @@ func pr(
         "url": "https://github.com/\(repo)/pull/\(number)", "body": body,
         "createdAt": stamp(createdAt), "author": author,
         "repository": ["nameWithOwner": repo],
+        "mergeable": mergeable ?? NSNull(),
         "comments": ["nodes": comments],
         // Inline comments arrive nested in the (empty "commented") review that holds them.
         "reviews": ["nodes": reviews + threads.enumerated().map { index, comments in
@@ -79,4 +80,15 @@ func detect(
     _ snapshot: Snapshot, state: SeenState = polled, settings: DetectorSettings = DetectorSettings()
 ) -> [PREvent] {
     EventDetector.detect(snapshot, state: state, settings: settings, now: now).events
+}
+
+/// A pull request that satisfies every part of the ready-to-merge rule, so each test
+/// can take one thing away.
+func readyPR(
+    number: Int = 1, repo: String = "acme/api", checks: [[String: Any]] = [],
+    isDraft: Bool = false, mergeable: String? = "MERGEABLE",
+    reviewDecision: String? = "APPROVED"
+) -> [String: Any] {
+    pr(repo: repo, number: number, checks: checks, isDraft: isDraft,
+       reviewDecision: reviewDecision, mergeable: mergeable)
 }
